@@ -1,0 +1,301 @@
+
+<html>
+<style>
+body {background-color:rgb(24,24,24);}
+h1   {color: rgb(191, 255, 0);}
+h2    {color: red;}
+p     {color : white;
+       font-size: 20px;}
+
+
+
+
+</style>
+</html>
+
+<b>Regression for Crime Rate</b>
+<br>
+<b>Daniel Lumban Gaol</b>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                     warning = FALSE,
+                     message = FALSE)
+
+```
+
+
+  
+# Introduction :
+The following is an analysis of the average crime rate of how socio-demographic variables influence crime rates in a region.
+
+
+
+# Case :
+
+We want to know what factors are very influential from the socio demographic, where we can predict the crime rate from the predictor variables we get.
+
+
+
+# 1. Library and Setup
+
+```{r message =FALSE}
+# Data Wrangling
+library(tidyverse)
+
+# Cek asumsi model
+library(lmtest)
+library(car)
+
+# Menghitung error
+library(MLmetrics)
+
+# Visualiasi Korelasi
+library(GGally)
+```
+
+# 2. Import Data
+
+```{r}
+crime_data<- read.csv("crime.csv")
+```
+
+
+
+```{r}
+str(crime_data)
+```
+
+<html>
+<body>
+
+<p>
+Data Description:
+</P>
+<p>
+`percent_m`: percentage of males aged 14-24
+</P>
+<p>
+`is_south`: whether it is in a Southern state. 1 for Yes, 0 for No.
+</P>
+<p>
+`mean_education`: mean years of schooling 
+</P>
+<p>
+`police_exp60`: police expenditure in 1960 
+</P>
+<p>
+`police_exp59`: police expenditure in 1959 
+</P>
+<p>
+`labour_participation`: labour force participation rate 
+</P>
+<p>
+`m_per1000f`: number of males per 1000 females 
+</P>
+<p>
+`state_pop`: state population
+</P>
+<p>
+`nonwhites_per1000`: number of non-whites resident per 1000 people
+</P>
+<p>
+`unemploy_m24`: unemployment rate of urban males aged 14-24 
+</P>
+<p>
+`unemploy_m39`: unemployment rate of urban males aged 35-39 
+</P>
+<p>
+`gdp`: gross domestic product per head 
+</P>
+<p>
+`inequality`: income inequality 
+</P>
+<p>
+`prob_prison`: probability of imprisonment
+</P>
+<p>
+`time_prison`: avg time served in prisons 
+</P>
+<p>
+`crime_rate`: crime rate in an unspecified category Produce a linear model
+</P>
+
+</html>
+</body>
+
+
+# 3. Exploratory Data Analysis
+
+```{r}
+#checking missing value in each column
+colSums(is.na(crime_data))
+```
+
+
+
+```{r}
+ggcorr(crime_data, label = TRUE, label_size = 2.5, hjust = 1, layout.exp = 3)
+```
+
+From the correlation graph above, we can quickly see the relationship between the predictors and the target variables,
+if you look at the predictors that have a strong relationship with the target variable are gdp, state_pop, police_exp59,
+police_exp60 and mean_education.
+
+
+## Cross Validation
+
+Split the data `crime_data` to be data train and data test, with the proporsion 80% train, 20% test
+
+```{r message=FALSE}
+RNGkind(sample.kind =  "Rounding")
+library(rsample)
+set.seed(100)
+
+index <- initial_split(crime_data, prop = 0.8, strata = "crime_rate")
+data_train <- training(index)
+data_test <- testing(index)
+
+
+```
+
+
+
+# 3. Model
+
+## A model with all predictors
+
+```{r}
+model_crime <- lm(crime_rate ~ ., data_train)
+```
+
+
+```{r}
+summary(model_crime)
+```
+
+From the results of the model with all predictors, get the value Adjusted R-square = 0.6871 or 68%, and predictors  that have a significant value are:
+
+percent_m,
+mean_education,
+police_exp60,
+unemploy_m39,
+inequality,
+prob_prison.
+
+
+## Backward Method
+
+ A more appropriate measure if you want to find a trade-off between the model's ability to follow the data pattern and its predictive ability is to use the `Akaike Information Criterion (AIC)`, with a good model having a low AIC.
+ 
+Backward method is done by gradually removing variables from the model. If after removing a variable the AIC value decreases, the new model will be selected. But if after removing a variable the AIC value increases, then the previous model will still be used.
+
+```{r}
+step(model_crime, direction = "backward")
+```
+
+ Model with the lowest AIC using the backward method is 423.8 with the model :
+
+crime.rate = 9.400(percent_m) + 21.209(mean_education) + 10.021(police_exp60) + 2.891(m_per1000f) +
+             -7.789(unemploy_m24) + 23.685(unemploy_39) + 6.482(inequality) + -3779.431(prob_prison)
+
+```{r}
+crime.model <- lm(formula = crime_rate ~ percent_m + mean_education + police_exp60 + 
+                m_per1000f + unemploy_m24 + unemploy_m39 + inequality + prob_prison, 
+                data = data_train)
+```
+
+
+```{r}
+summary(crime.model)
+```
+
+After using the `crime.model` model, the value Adjusted R-Squared = 0.7332 / 73% occurs an increase of the Adjusted R-Squared value from the previous model, if all predictors are used, Adjusted R-square =  0.6871 or 68%
+
+
+
+
+## The model predict evaluation
+
+```{r}
+predict.crime <- predict(crime.model, newdata = data_test)
+head(predict.crime,1)
+
+```
+```{r}
+as.data.frame(predict.crime)
+```
+
+
+interpretation :
+
+ The results of the prediction of average criminals if using the model from (`crime.model`) on the data (`data_test`) on the data in the first row will get a crime rate score 391.6707 
+
+  
+# Model Error
+
+```{r}
+MAE(predict.crime, data_test$crime_rate) # Mean Average Error 
+MAPE(predict.crime, data_test$crime_rate) # Mean Average Percetage Error
+RMSE(predict.crime, data_test$crime_rate) # Root Mean Squared Error
+```
+interpretation :
+
+<p>MAE  : On average, the prediction of crime rate missed by 144.1993, can be higher or lower</P>
+<br>
+<p>MAPE : The model predicts medical charges with a probability of being deviated by 21% of their actual value</p>
+<br>
+<p>RMSE : The model gave a mean of 163.8212 deviant prediction results,RMSE can be used if we are more concerned with very large errors.
+
+
+ 
+# 4. Assumption Test
+ 
+## Multicollinearity
+
+terms: All of variabel VIF < 10
+
+```{r}
+vif(crime.model)
+```
+
+all values of vif are <10, so that the variable does not occur multicollinearity or between predictor variables does not have a strong relationship.
+
+
+## Error normally distributed
+
+```{r}
+plot(density(crime.model$residuals))
+```
+
+From the graph above, it can be concluded that the error of the data is normally distributed, assuming the curve is symmetrical and resembles a bell so that the mean, median and mode lie at one point.
+
+
+
+terms : p-value > 0.05
+```{r}
+shapiro.test(crime.model$residuals)
+```
+
+Because the p-value is> 0.05, it can be said that the residual / error is normally distributed
+
+
+## Heteroskesdaticity/ Unequal Variance
+
+terms : p-value > 0.05
+
+```{r}
+bptest(crime.model)
+```
+
+P-value> 0.05 so that H0 is accepted. This also means that the residuals do not have a pattern (heteroscedasticity) where all the existing patterns have been captured by the model created.
+
+
+# 5. Conclutions
+
+The model of the `model_crime` that we tested using all the predictors got an R-square result of 68%, after that when using the backward method, he would iterate until he found the right model with the lowest` AIC` reference, namely 423, with the increase in the R-square rate to 73% with the model name 'crime.model' so that the socio-demographic factors that affect the crime rate in an area is:
+
+<b> m_per1000f, unemploy_m24, prob_prison, unemploy_m39, percent_m, mean_education, inequality, police_exp60 </b>   
+
+After testing the analysis the model has good criteria with RMSE : 163.8212
